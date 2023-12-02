@@ -161,20 +161,20 @@ fn encode_error(error: Cow<'_, str>, buf: &mut BytesMut) {
 fn encode_negative(n: i64, buf: &mut BytesMut) {
     if n.abs() < 24 {
         let major = NEGATIVE_MAJOR << 5;
-        let major = major | n as u8;
+        let major = major | -n as u8;
         buf.put_u8(major);
         return;
     }
 
-    let mut len = (64 - n.leading_zeros() as usize) / 8;
-    if len == 0 || n.leading_zeros() % 8 != 0 {
+    let mut len = (64 - (-n).leading_zeros() as usize) / 8;
+    if len == 0 || (-n).leading_zeros() % 8 != 0 {
         len += 1;
     }
 
     let major = NEGATIVE_MAJOR << 5;
-    let major = major | len as u8;
+    let major = major | (len + 23) as u8;
     buf.put_u8(major);
-    buf.put_int(n, len);
+    buf.put_int(-(n + 1), len);
 }
 
 fn encode_positive(n: u64, buf: &mut BytesMut) {
@@ -190,7 +190,7 @@ fn encode_positive(n: u64, buf: &mut BytesMut) {
     }
 
     let major = POSITIVE_MAJOR << 5;
-    let major = major | len as u8;
+    let major = major | (len + 23) as u8;
     buf.put_u8(major);
     buf.put_int(n as i64, len);
 }
@@ -232,7 +232,7 @@ fn encode_array(array: Vec<Value<'_>>, buf: &mut BytesMut) {
     let major = if len < 31 {
         major | len as u8
     } else {
-        INDEFINITE_LENGTH
+        major | INDEFINITE_LENGTH
     };
     buf.put_u8(major);
     buf.extend(array.into_iter().flat_map(|i| i.encode().into_iter()));
@@ -499,5 +499,80 @@ mod tests {
         assert!(rest.is_empty());
     }
 
-    mod encoding {}
+    mod encoding {
+        use std::borrow::Cow;
+
+        use crate::protocol::{ARRAY_MAJOR, INDEFINITE_LENGTH};
+
+        use super::Value;
+
+        #[test]
+        fn small_positive() {
+            let number = Value::Positive(5);
+            let encoded_number = number.encode();
+            assert_eq!(&encoded_number[..], b"\x05");
+        }
+
+        #[test]
+        fn positive() {
+            let number = Value::Positive(500);
+            let encoded_number = number.encode();
+            assert_eq!(&encoded_number[..], b"\x19\x01\xf4");
+        }
+
+        #[test]
+        fn small_negative() {
+            let number = Value::Negative(-5);
+            let encoded_number = number.encode();
+            assert_eq!(&encoded_number[..], &[0b001_00101u8][..]);
+        }
+
+        #[test]
+        fn negative() {
+            let number = Value::Negative(-500);
+            let encoded_number = number.encode();
+            assert_eq!(&encoded_number[..], b"\x39\x01\xf3");
+        }
+
+        #[test]
+        fn bytes() {
+            let bytes = Value::<'_, u8, str>::Bytes(Cow::from(&b"hi"[..]));
+            let encoded_bytes = bytes.encode();
+            assert_eq!(&encoded_bytes[..], [0b010_00010, b'h', b'i']);
+        }
+
+        #[test]
+        fn string() {
+            let bytes = Value::<'_, u8, str>::String(Cow::from("hi"));
+            let encoded_bytes = bytes.encode();
+            assert_eq!(&encoded_bytes[..], [0b011_00010, b'h', b'i']);
+        }
+
+        #[test]
+        fn sized_array() {
+            let array = Value::Array(vec![Value::Positive(5), Value::Negative(-500)]);
+            let encoded_array = array.encode();
+            let mut encoded = vec![(ARRAY_MAJOR << 5) | 2];
+            encoded.extend_from_slice(b"\x05");
+            encoded.extend_from_slice(b"\x39\x01\xf3");
+            assert_eq!(&encoded_array[..], encoded);
+        }
+
+        #[test]
+        fn unsized_array() {
+            let array = Value::Array(
+                std::iter::repeat(Value::Positive(500))
+                    .take(32)
+                    .collect::<Vec<Value<'_, u8, str>>>(),
+            );
+            let encoded_array = array.encode();
+            let mut encoded = vec![(ARRAY_MAJOR << 5) | INDEFINITE_LENGTH];
+            for _ in 0..32 {
+                encoded.extend_from_slice(b"\x19\x01\xf4");
+            }
+            encoded.extend_from_slice(b"\xFF");
+
+            assert_eq!(&encoded_array[..], encoded);
+        }
+    }
 }
