@@ -4,6 +4,7 @@ use crate::protocol::{
 };
 use std::{borrow::Cow, collections::HashMap};
 
+use crate::error::IResult;
 use bytes::BytesMut;
 use nom::{
     bytes::complete::{tag, take},
@@ -11,7 +12,6 @@ use nom::{
     multi::{count, many_till},
     number::complete::be_u8,
     sequence::tuple,
-    IResult,
 };
 
 /// Parse first byte and split it into `major` and `additional` information.
