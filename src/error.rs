@@ -15,15 +15,22 @@ pub enum ProtocolError {
 
 #[derive(Debug, Error)]
 #[error("")]
+#[from(tokio::io::Error)]
 pub struct ParseError;
 
 impl nom::error::ParseError<&[u8]> for ParseError {
-    fn from_error_kind(input: &[u8], kind: nom::error::ErrorKind) -> Self {
-        todo!()
+    fn from_error_kind(_: &[u8], _: nom::error::ErrorKind) -> Self {
+        Self
     }
 
-    fn append(input: &[u8], kind: nom::error::ErrorKind, other: Self) -> Self {
-        todo!()
+    fn append(_: &[u8], _: nom::error::ErrorKind, _: Self) -> Self {
+        Self
+    }
+}
+
+impl nom::error::FromExternalError<&[u8], std::str::Utf8Error> for ParseError {
+    fn from_external_error(_: &[u8], _: nom::error::ErrorKind, _: std::str::Utf8Error) -> Self {
+        Self
     }
 }
 
