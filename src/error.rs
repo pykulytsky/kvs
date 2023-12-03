@@ -8,9 +8,10 @@ pub enum ProtocolError {
     Read(#[from] tokio::io::Error),
     #[error("")]
     ZeroRead,
-
     #[error("")]
     Parse(#[from] nom::Err<ParseError>),
+    #[error("")]
+    Command,
 }
 
 #[derive(Debug, Error)]
