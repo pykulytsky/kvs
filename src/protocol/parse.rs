@@ -1,8 +1,6 @@
-use crate::protocol::{
-    Value, ARRAY_MAJOR, BYTES_MAJOR, ERROR_MAJOR, INDEFINITE_LENGTH, MAP_MAJOR, NEGATIVE_MAJOR,
-    POSITIVE_MAJOR, STRING_MAJOR,
-};
-use std::{borrow::Cow, collections::HashMap};
+use crate::protocol::{Major, Value, INDEFINITE_LENGTH};
+use std::borrow::Cow;
+use std::collections::HashMap;
 
 use crate::error::IResult;
 use bytes::BytesMut;
@@ -15,22 +13,24 @@ use nom::{
 };
 
 /// Parse first byte and split it into `major` and `additional` information.
-pub fn parse_first_byte(input: &[u8]) -> IResult<&[u8], (u8, u8)> {
-    map(be_u8, |b: u8| (b >> 5, b & 0x1F))(input)
+pub fn parse_first_byte(input: &[u8]) -> IResult<&[u8], (Major, u8)> {
+    map_res(map(be_u8, |b: u8| (b >> 5, b & 0x1F)), |(major, size)| {
+        Major::try_from(major).map(|m| (m, size))
+    })(input)
 }
 
 pub fn parse(input: &[u8]) -> IResult<&[u8], Value<'_>> {
     let (rest, (major, size)) = parse_first_byte(input)?;
     match major {
-        POSITIVE_MAJOR => parse_number(rest, size).map(|(rest, n)| (rest, Value::Positive(n))),
-        NEGATIVE_MAJOR => {
+        Major::Positive => parse_number(rest, size).map(|(rest, n)| (rest, Value::Positive(n))),
+        Major::Negative => {
             parse_number(rest, size).map(|(rest, n)| (rest, Value::Negative(-1 - n as i64)))
         }
-        BYTES_MAJOR => parse_bytes(rest, size),
-        STRING_MAJOR => parse_string(rest, size),
-        ARRAY_MAJOR => parse_array(rest, size),
-        ERROR_MAJOR => parse_error(rest, size),
-        MAP_MAJOR => parse_map(rest, size),
+        Major::Bytes => parse_bytes(rest, size),
+        Major::String => parse_string(rest, size),
+        Major::Array => parse_array(rest, size),
+        Major::Error => parse_error(rest, size),
+        Major::Map => parse_map(rest, size),
         _ => todo!(),
     }
 }
@@ -204,7 +204,7 @@ mod tests {
         let one_byte = [0b010_10110];
         let negative = [0b001_10110];
         let big_positive = [0b000_11001u8, 0x01, 0xf4];
-        let mut payload = vec![(ARRAY_MAJOR << 5) | 0b00000100];
+        let mut payload = vec![((Major::Array as u8) << 5) | 0b00000100];
         payload.extend_from_slice(&byte[..]);
         payload.extend_from_slice(&one_byte[..]);
         payload.extend_from_slice(&negative[..]);
@@ -231,7 +231,7 @@ mod tests {
         let one_byte = [0b010_10110];
         let negative = [0b001_10110];
         let big_positive = [0b000_11001u8, 0x01, 0xf4];
-        let mut payload = vec![(ARRAY_MAJOR << 5) | 31];
+        let mut payload = vec![((Major::Array as u8) << 5) | 31];
         payload.extend_from_slice(&byte[..]);
         payload.extend_from_slice(&one_byte[..]);
         payload.extend_from_slice(&negative[..]);

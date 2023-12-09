@@ -1,4 +1,7 @@
+pub mod entry;
+pub mod get;
 pub mod ping;
+pub mod set;
 
 use std::sync::Arc;
 

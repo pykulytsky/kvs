@@ -1,13 +1,10 @@
-use super::{
-    Value, ARRAY_MAJOR, BYTES_MAJOR, ERROR_MAJOR, INDEFINITE_LENGTH, NEGATIVE_MAJOR,
-    POSITIVE_MAJOR, STRING_MAJOR,
-};
+use super::{Major, Value, INDEFINITE_LENGTH};
 use std::{borrow::Cow, collections::HashMap};
 
 use bytes::{BufMut, BytesMut};
 
-pub fn enode_map(map: HashMap<BytesMut, Value<'_>>, buf: &mut BytesMut) {
-    let major = ARRAY_MAJOR << 5;
+pub fn encode_map(map: HashMap<BytesMut, Value<'_>>, buf: &mut BytesMut) {
+    let major = (Major::Map as u8) << 5;
     let len = map.len();
     let major = if len < 31 {
         major | len as u8
@@ -29,13 +26,11 @@ pub fn encode_error(error: Cow<'_, str>, buf: &mut BytesMut) {
     let bytes = error.as_bytes();
     if let Some(first) = bytes.first().copied() {
         if bytes.len() == 1 && first < 24 {
-            let major = ERROR_MAJOR << 5;
-            let major = major | first;
-            buf.put_u8(major);
+            write_single_byte(first, buf, Major::Error as u8);
             return;
         }
     }
-    let major = ERROR_MAJOR << 5;
+    let major = (Major::Error as u8) << 5;
     let major = major | bytes.len() as u8;
     buf.put_u8(major);
     buf.extend_from_slice(bytes);
@@ -43,7 +38,7 @@ pub fn encode_error(error: Cow<'_, str>, buf: &mut BytesMut) {
 
 pub fn encode_negative(n: i64, buf: &mut BytesMut) {
     if n.abs() < 24 {
-        let major = NEGATIVE_MAJOR << 5;
+        let major = (Major::Negative as u8) << 5;
         let major = major | -n as u8;
         buf.put_u8(major);
         return;
@@ -54,7 +49,7 @@ pub fn encode_negative(n: i64, buf: &mut BytesMut) {
         len += 1;
     }
 
-    let major = NEGATIVE_MAJOR << 5;
+    let major = (Major::Negative as u8) << 5;
     let major = major | (len + 23) as u8;
     buf.put_u8(major);
     buf.put_int(-(n + 1), len);
@@ -62,7 +57,7 @@ pub fn encode_negative(n: i64, buf: &mut BytesMut) {
 
 pub fn encode_positive(n: u64, buf: &mut BytesMut) {
     if n < 24 {
-        let major = POSITIVE_MAJOR << 5;
+        let major = (Major::Positive as u8) << 5;
         let major = major | n as u8;
         buf.put_u8(major);
         return;
@@ -72,22 +67,27 @@ pub fn encode_positive(n: u64, buf: &mut BytesMut) {
         len += 1;
     }
 
-    let major = POSITIVE_MAJOR << 5;
+    let major = (Major::Positive as u8) << 5;
     let major = major | (len + 23) as u8;
     buf.put_u8(major);
     buf.put_int(n as i64, len);
 }
 
+fn write_single_byte(byte: u8, buf: &mut BytesMut, major: u8) {
+    let major = major << 5;
+    let major = major | byte;
+    buf.put_u8(major);
+}
+
 pub fn encode_bytes(bytes: Cow<'_, [u8]>, buf: &mut BytesMut) {
     if let Some(first) = bytes.first().copied() {
         if bytes.len() == 1 && first < 24 {
-            let major = BYTES_MAJOR << 5;
-            let major = major | first;
-            buf.put_u8(major);
+            write_single_byte(first, buf, Major::Bytes as u8);
             return;
         }
     }
-    let major = BYTES_MAJOR << 5;
+
+    let major = (Major::Bytes as u8) << 5;
     let major = major | bytes.len() as u8;
     buf.put_u8(major);
     buf.extend_from_slice(&bytes[..]);
@@ -97,20 +97,18 @@ pub fn encode_string(string: Cow<'_, str>, buf: &mut BytesMut) {
     let bytes = string.as_bytes();
     if let Some(first) = bytes.first().copied() {
         if bytes.len() == 1 && first < 24 {
-            let major = STRING_MAJOR << 5;
-            let major = major | first;
-            buf.put_u8(major);
+            write_single_byte(first, buf, Major::String as u8);
             return;
         }
     }
-    let major = STRING_MAJOR << 5;
+    let major = (Major::String as u8) << 5;
     let major = major | bytes.len() as u8;
     buf.put_u8(major);
     buf.extend_from_slice(bytes);
 }
 
 pub fn encode_array(array: Vec<Value<'_>>, buf: &mut BytesMut) {
-    let major = ARRAY_MAJOR << 5;
+    let major = (Major::Array as u8) << 5;
     let len = array.len();
     let major = if len < 31 {
         major | len as u8

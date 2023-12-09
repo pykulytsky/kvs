@@ -53,16 +53,3 @@ where
         self.write_half.flush().await
     }
 }
-
-#[cfg(test)]
-mod tests {
-
-    use super::Connection;
-    use tokio::net::TcpStream;
-
-    #[tokio::test]
-    async fn it_works() {
-        let mut stream = TcpStream::connect("").await.unwrap();
-        let c = Connection::from_stream(&mut stream);
-    }
-}

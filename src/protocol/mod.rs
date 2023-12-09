@@ -3,6 +3,7 @@ pub mod parse;
 
 pub use parse::parse;
 
+use std::str::Utf8Error;
 use std::{borrow::Cow, collections::HashMap};
 
 use bytes::BytesMut;
@@ -15,6 +16,35 @@ pub const ARRAY_MAJOR: u8 = 0b100;
 pub const ERROR_MAJOR: u8 = 0b101;
 pub const MAP_MAJOR: u8 = 0b110;
 pub const FLOAT_MAJOR: u8 = 0b111;
+
+pub enum Major {
+    Positive = 0b000,
+    Negative = 0b001,
+    Bytes = 0b010,
+    String = 0b011,
+    Array = 0b100,
+    Error = 0b101,
+    Map = 0b110,
+    Float = 0b111,
+}
+
+impl TryFrom<u8> for Major {
+    type Error = Utf8Error;
+
+    fn try_from(value: u8) -> Result<Self, Utf8Error> {
+        match value {
+            0b000 => Ok(Major::Positive),
+            0b001 => Ok(Major::Negative),
+            0b010 => Ok(Major::Bytes),
+            0b011 => Ok(Major::String),
+            0b100 => Ok(Major::Array),
+            0b101 => Ok(Major::Error),
+            0b110 => Ok(Major::Map),
+            0b111 => Ok(Major::Float),
+            _ => todo!(),
+        }
+    }
+}
 
 pub const INDEFINITE_LENGTH: u8 = 31;
 
@@ -160,7 +190,7 @@ impl Value<'_> {
             Value::Bytes(b) => encode::encode_bytes(b, &mut buf),
             Value::String(s) => encode::encode_string(s, &mut buf),
             Value::Array(array) => encode::encode_array(array, &mut buf),
-            Value::Map(map) => encode::enode_map(map, &mut buf),
+            Value::Map(map) => encode::encode_map(map, &mut buf),
             Value::Error(err) => encode::encode_error(err, &mut buf),
         }
 
