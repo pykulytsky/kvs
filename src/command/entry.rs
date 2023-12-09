@@ -12,6 +12,7 @@ use crate::{
     protocol::Value,
 };
 
+#[derive(Debug, PartialEq, Clone)]
 pub enum CommandEntry {
     Ping(Ping),
     Get(Get),
@@ -48,6 +49,7 @@ impl CommandEntry {
             CommandEntry::Get(g) => g.execute(connection, db).await,
             CommandEntry::Set(s) => s.execute(connection, db).await,
         };
+        let _ = connection.flush_writer().await;
     }
 
     pub fn encode(self) -> Value<'static> {

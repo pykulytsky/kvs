@@ -80,13 +80,6 @@ fn write_single_byte(byte: u8, buf: &mut BytesMut, major: u8) {
 }
 
 pub fn encode_bytes(bytes: Cow<'_, [u8]>, buf: &mut BytesMut) {
-    if let Some(first) = bytes.first().copied() {
-        if bytes.len() == 1 && first < 24 {
-            write_single_byte(first, buf, Major::Bytes as u8);
-            return;
-        }
-    }
-
     let major = (Major::Bytes as u8) << 5;
     let major = major | bytes.len() as u8;
     buf.put_u8(major);
@@ -95,12 +88,6 @@ pub fn encode_bytes(bytes: Cow<'_, [u8]>, buf: &mut BytesMut) {
 
 pub fn encode_string(string: Cow<'_, str>, buf: &mut BytesMut) {
     let bytes = string.as_bytes();
-    if let Some(first) = bytes.first().copied() {
-        if bytes.len() == 1 && first < 24 {
-            write_single_byte(first, buf, Major::String as u8);
-            return;
-        }
-    }
     let major = (Major::String as u8) << 5;
     let major = major | bytes.len() as u8;
     buf.put_u8(major);
@@ -115,6 +102,7 @@ pub fn encode_array(array: Vec<Value<'_>>, buf: &mut BytesMut) {
     } else {
         major | INDEFINITE_LENGTH
     };
+
     buf.put_u8(major);
     buf.extend(array.into_iter().flat_map(|i| i.encode().into_iter()));
     if len >= 31 {

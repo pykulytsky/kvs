@@ -66,20 +66,12 @@ fn parse_map(input: &[u8], size: u8) -> IResult<&[u8], Value<'_>> {
 }
 
 fn parse_bytes(input: &[u8], additional: u8) -> IResult<&[u8], Value<'_>> {
-    if additional < 23 {
-        return Ok((input, Value::Bytes(Cow::from(vec![additional]))));
-    }
-    let additional = additional - 23;
     map(take(additional), |bytes: &[u8]| {
         Value::Bytes(Cow::from(bytes))
     })(input)
 }
 
 fn parse_string(input: &[u8], additional: u8) -> IResult<&[u8], Value<'_>> {
-    if additional < 23 {
-        return Ok((input, Value::Bytes(Cow::from(vec![additional]))));
-    }
-    let additional = additional - 23;
     map(
         map_res(take(additional), |bytes: &[u8]| std::str::from_utf8(bytes)),
         |s: &str| Value::String(Cow::from(s)),
@@ -87,10 +79,6 @@ fn parse_string(input: &[u8], additional: u8) -> IResult<&[u8], Value<'_>> {
 }
 
 fn parse_error(input: &[u8], additional: u8) -> IResult<&[u8], Value<'_>> {
-    if additional < 23 {
-        return Ok((input, Value::Bytes(Cow::from(vec![additional]))));
-    }
-    let additional = additional - 23;
     map(
         map_res(take(additional), |bytes: &[u8]| std::str::from_utf8(bytes)),
         |s: &str| Value::Error(Cow::from(s)),
@@ -168,18 +156,8 @@ mod tests {
         }
 
         #[test]
-        fn one_byte() {
-            let payload = [0b010_10110];
-            let parsed = parse(&payload[..]);
-            assert!(parsed.is_ok());
-            let (rest, parsed) = parsed.unwrap();
-            assert_eq!(parsed, Value::Bytes(Cow::Borrowed(&[22u8][..])));
-            assert!(rest.is_empty());
-        }
-
-        #[test]
         fn one_big_byte() {
-            let payload = [0b010_11000, 0xFF];
+            let payload = [0b010_00001, 0xFF];
             let parsed = parse(&payload[..]);
             assert!(parsed.is_ok());
             let (rest, parsed) = parsed.unwrap();
@@ -189,7 +167,7 @@ mod tests {
 
         #[test]
         fn string() {
-            let payload = [0b011_11100, 104, 101, 108, 108, 111];
+            let payload = [0b011_00101, 104, 101, 108, 108, 111];
             let parsed = parse(&payload[..]);
             assert!(parsed.is_ok());
             let (rest, parsed) = parsed.unwrap();
@@ -200,13 +178,11 @@ mod tests {
 
     #[test]
     fn sized_array() {
-        let byte = [0b010_11000, 0xF1];
-        let one_byte = [0b010_10110];
+        let byte = [0b010_00001, 0xF1];
         let negative = [0b001_10110];
         let big_positive = [0b000_11001u8, 0x01, 0xf4];
-        let mut payload = vec![((Major::Array as u8) << 5) | 0b00000100];
+        let mut payload = vec![((Major::Array as u8) << 5) | 0b00000011];
         payload.extend_from_slice(&byte[..]);
-        payload.extend_from_slice(&one_byte[..]);
         payload.extend_from_slice(&negative[..]);
         payload.extend_from_slice(&big_positive[..]);
 
@@ -217,7 +193,6 @@ mod tests {
             parsed,
             Value::Array(vec![
                 Value::Bytes(Cow::Borrowed(&[0xF1][..])),
-                Value::Bytes(Cow::Borrowed(&[22u8][..])),
                 Value::Negative(-0b10111),
                 Value::Positive(500),
             ])
@@ -227,13 +202,11 @@ mod tests {
 
     #[test]
     fn unsized_array() {
-        let byte = [0b010_11000, 0xFF];
-        let one_byte = [0b010_10110];
+        let byte = [0b010_00001, 0xFF];
         let negative = [0b001_10110];
         let big_positive = [0b000_11001u8, 0x01, 0xf4];
         let mut payload = vec![((Major::Array as u8) << 5) | 31];
         payload.extend_from_slice(&byte[..]);
-        payload.extend_from_slice(&one_byte[..]);
         payload.extend_from_slice(&negative[..]);
         payload.extend_from_slice(&big_positive[..]);
         payload.push(0xFF);
@@ -245,7 +218,6 @@ mod tests {
             parsed,
             Value::Array(vec![
                 Value::Bytes(Cow::Borrowed(&[0xFF][..])),
-                Value::Bytes(Cow::Borrowed(&[22u8][..])),
                 Value::Negative(-0b10111),
                 Value::Positive(500),
             ])

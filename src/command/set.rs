@@ -3,16 +3,22 @@ use std::borrow::Cow;
 use bytes::BytesMut;
 use nom::AsBytes;
 
-use crate::{command::Command, error::ProtocolError, protocol::Value};
+use crate::{
+    command::{get::EMPTY, Command},
+    error::ProtocolError,
+    protocol::Value,
+};
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct Set {
-    key: BytesMut,
-    value: Value<'static>,
+    pub key: BytesMut,
+    pub value: Value<'static>,
 }
 
 impl Command for Set {
     type ExecutionResult = crate::error::Result<()>;
 
+    #[allow(clippy::await_holding_lock)]
     async fn execute<W, R>(
         &self,
         connection: &mut crate::codec::Connection<R, W>,
@@ -26,11 +32,11 @@ impl Command for Set {
         let prev = shard.insert(key, self.value.clone());
         match prev {
             Some(value) => {
-                connection.write_frame(value).await;
+                let _ = connection.write_frame(value).await;
             }
             None => {
-                connection
-                    .write_frame(Value::Error(Cow::Borrowed("NO VALUE")))
+                let _ = connection
+                    .write_frame(Value::Error(Cow::Borrowed(EMPTY)))
                     .await;
             }
         };
@@ -43,7 +49,7 @@ impl Command for Set {
         V: AsRef<[Value<'c>]>,
     {
         match req.as_ref() {
-            [Value::String(Cow::Borrowed("SET")), Value::Bytes(key), value, ..] => Ok(Self {
+            [Value::Bytes(key), value] => Ok(Self {
                 key: BytesMut::from(key.as_bytes()),
                 value: value.clone().to_owned(),
             }),

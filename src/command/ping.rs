@@ -9,8 +9,9 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::{codec::Connection, protocol::Value};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Ping;
+
 impl Command for Ping {
     type ExecutionResult = Result<()>;
     async fn execute<W, R>(
