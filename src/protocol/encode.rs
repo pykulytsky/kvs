@@ -38,6 +38,7 @@ pub fn encode_error(error: Cow<'_, str>, buf: &mut BytesMut) {
 
 pub fn encode_negative(n: i64, buf: &mut BytesMut) {
     if n.abs() < 24 {
+        dbg!(-n);
         let major = (Major::Negative as u8) << 5;
         let major = major | -n as u8;
         buf.put_u8(major);
@@ -117,12 +118,16 @@ mod tests {
     use crate::protocol::{ARRAY_MAJOR, INDEFINITE_LENGTH};
 
     use super::Value;
+    use test_case::test_case;
 
-    #[test]
-    fn small_positive() {
-        let number = Value::Positive(5);
+    #[test_case(0, b"\x00")]
+    #[test_case(1, b"\x01")]
+    #[test_case(22, b"\x16")]
+    #[test_case(23, b"\x17")]
+    fn small_positive(number: u64, expected: &[u8; 1]) {
+        let number = Value::Positive(number);
         let encoded_number = number.encode();
-        assert_eq!(&encoded_number[..], b"\x05");
+        assert_eq!(&encoded_number[..], expected);
     }
 
     #[test]
@@ -132,11 +137,15 @@ mod tests {
         assert_eq!(&encoded_number[..], b"\x19\x01\xf4");
     }
 
-    #[test]
-    fn small_negative() {
-        let number = Value::Negative(-5);
+    #[test_case(0, b"\x20")]
+    #[test_case(-1, b"\x21")]
+    #[test_case(-2, b"\x22")]
+    #[test_case(-22, b"\x36")]
+    #[test_case(-23, b"\x37")]
+    fn small_negative(number: i64, expected: &[u8; 1]) {
+        let number = Value::Negative(number);
         let encoded_number = number.encode();
-        assert_eq!(&encoded_number[..], &[0b001_00101u8][..]);
+        assert_eq!(&encoded_number[..], expected);
     }
 
     #[test]

@@ -113,6 +113,7 @@ mod tests {
         use std::borrow::Cow;
 
         use crate::protocol::Value;
+        use test_case::test_case;
 
         use super::parse;
         #[test]
@@ -125,13 +126,14 @@ mod tests {
             assert!(rest.is_empty());
         }
 
-        #[test]
-        fn small_negative() {
-            let payload = [0b001_10110];
+        #[test_case([0b001_00000], Value::Negative(-1))]
+        #[test_case([0b001_00001], Value::Negative(-2))]
+        #[test_case([0b001_00010], Value::Negative(-3))]
+        fn small_negative(payload: [u8; 1], value: Value<'static>) {
             let parsed = parse(&payload[..]);
             assert!(parsed.is_ok());
             let (rest, parsed) = parsed.unwrap();
-            assert_eq!(parsed, Value::Negative(-0b10111));
+            assert_eq!(parsed, value);
             assert!(rest.is_empty());
         }
 

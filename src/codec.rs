@@ -73,8 +73,10 @@ mod tests {
     use crate::{
         codec::Connection,
         command::{
+            decr::{Decr, DecrBy},
             entry::CommandEntry,
             get::{Get, EMPTY},
+            incr::{Incr, IncrBy},
             ping::Ping,
             set::Set,
         },
@@ -280,5 +282,36 @@ mod tests {
         );
     }
     #[tokio::test]
-    async fn incr() {}
+    async fn incr() {
+        let reader = TestStream {
+            commands: vec![
+                CommandEntry::IncrBy(IncrBy {
+                    key: BytesMut::from(&b"test"[..]),
+                    by: 100,
+                }),
+                CommandEntry::Incr(Incr {
+                    key: BytesMut::from(&b"test"[..]),
+                }),
+                CommandEntry::Incr(Incr {
+                    key: BytesMut::from(&b"test"[..]),
+                }),
+            ],
+        };
+        let writer = TestWriter::new();
+
+        let mut connection = Connection::new(reader, writer);
+        let db = Arc::new(sharded::Map::new());
+        for _ in 0..3 {
+            let payload = connection.read_frame().await;
+            assert!(payload.is_ok());
+            let command = CommandEntry::parse(payload.unwrap());
+            assert!(command.is_ok());
+            let command = command.unwrap();
+            command.execute(&mut connection, db.clone()).await;
+        }
+        assert_eq!(
+            connection.write_half.get_ref().values,
+            vec![Value::Positive(0), Value::Positive(1), Value::Positive(101)]
+        );
+    }
 }

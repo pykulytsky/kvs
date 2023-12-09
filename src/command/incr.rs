@@ -7,7 +7,7 @@ use crate::{command::Command, protocol::Value};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Incr {
-    key: BytesMut,
+    pub key: BytesMut,
 }
 
 impl Command for Incr {
@@ -69,8 +69,8 @@ impl Command for Incr {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct IncrBy {
-    key: BytesMut,
-    by: i64,
+    pub key: BytesMut,
+    pub by: i64,
 }
 
 impl Command for IncrBy {

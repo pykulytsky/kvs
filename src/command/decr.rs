@@ -7,7 +7,7 @@ use crate::{command::Command, protocol::Value};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Decr {
-    key: BytesMut,
+    pub key: BytesMut,
 }
 
 impl Command for Decr {
@@ -69,8 +69,8 @@ impl Command for Decr {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct DecrBy {
-    key: BytesMut,
-    by: i64,
+    pub key: BytesMut,
+    pub by: i64,
 }
 
 impl Command for DecrBy {
