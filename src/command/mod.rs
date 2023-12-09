@@ -1,5 +1,7 @@
+pub mod decr;
 pub mod entry;
 pub mod get;
+pub mod incr;
 pub mod ping;
 pub mod set;
 

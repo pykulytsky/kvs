@@ -10,6 +10,10 @@ use tokio::{
 
 use crate::protocol::{parse, Value};
 
+/// Wrappers around [`tokio::io::AsyncRead`] and [`tokio::io::AsyncWrite`] to work with
+/// [`crate::protocol::Value`]. It uses buffered write.
+///
+/// After you write some value to the stream, you need to flush it manyally.
 pub struct Connection<R, W> {
     pub read_half: R,
     pub write_half: BufWriter<W>,
@@ -17,6 +21,7 @@ pub struct Connection<R, W> {
 }
 
 impl<'s> Connection<ReadHalf<'s>, WriteHalf<'s>> {
+    /// Creates new connection from [`tokio::net::TcpStream`].
     pub fn from_stream(stream: &'s mut TcpStream) -> Connection<ReadHalf<'s>, WriteHalf<'s>> {
         let (read_half, write_half) = stream.split();
         Self::new(read_half, write_half)
@@ -36,6 +41,9 @@ where
         }
     }
 
+    /// Reads some amount of bytes from the stream and parses it into [`crate::protocol::Value`].
+    ///
+    /// If the number of bytes is 0, returns [`crate::error::ProtocolError`].
     pub async fn read_frame(&mut self) -> error::Result<Value<'_>> {
         self.buf.clear();
         let read = self.read_half.read_buf(&mut self.buf).await?;
@@ -271,4 +279,6 @@ mod tests {
             vec![Value::Error(Cow::Borrowed(EMPTY)), Value::Positive(43)]
         );
     }
+    #[tokio::test]
+    async fn incr() {}
 }
