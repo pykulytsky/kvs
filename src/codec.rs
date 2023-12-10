@@ -73,12 +73,11 @@ mod tests {
     use crate::{
         codec::Connection,
         command::{
-            decr::{Decr, DecrBy},
             entry::CommandEntry,
             get::{Get, EMPTY},
             incr::{Incr, IncrBy},
             ping::Ping,
-            set::Set,
+            set::{GetSet, Set},
         },
         protocol::{parse, Value},
     };
@@ -276,11 +275,60 @@ mod tests {
             })
         );
         command.execute(&mut connection, db.clone()).await;
+        assert_eq!(connection.write_half.get_ref().values, vec![]);
+    }
+
+    #[tokio::test]
+    async fn getset() {
+        let reader = TestStream {
+            commands: vec![
+                CommandEntry::GetSet(GetSet {
+                    key: BytesMut::from(&b"test"[..]),
+                    value: Value::Positive(42),
+                }),
+                CommandEntry::GetSet(GetSet {
+                    key: BytesMut::from(&b"test"[..]),
+                    value: Value::Positive(43),
+                }),
+            ],
+        };
+        let writer = TestWriter::new();
+        let mut connection = Connection::new(reader, writer);
+        let db = Arc::new(sharded::Map::new());
+        let payload = connection.read_frame().await;
+        assert!(payload.is_ok());
+        let payload = payload.unwrap();
+        let command = CommandEntry::parse(payload);
+        assert!(command.is_ok());
+        let command = command.unwrap();
+        assert_eq!(
+            command,
+            CommandEntry::GetSet(GetSet {
+                key: BytesMut::from(&b"test"[..]),
+                value: Value::Positive(43)
+            })
+        );
+        command.execute(&mut connection, db.clone()).await;
+        let payload = connection.read_frame().await;
+        assert!(payload.is_ok());
+        let payload = payload.unwrap();
+        let command = CommandEntry::parse(payload);
+        assert!(command.is_ok());
+        let command = command.unwrap();
+        assert_eq!(
+            command,
+            CommandEntry::GetSet(GetSet {
+                key: BytesMut::from(&b"test"[..]),
+                value: Value::Positive(42)
+            })
+        );
+        command.execute(&mut connection, db.clone()).await;
         assert_eq!(
             connection.write_half.get_ref().values,
             vec![Value::Error(Cow::Borrowed(EMPTY)), Value::Positive(43)]
         );
     }
+
     #[tokio::test]
     async fn incr() {
         let reader = TestStream {

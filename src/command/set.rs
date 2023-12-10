@@ -21,6 +21,53 @@ impl Command for Set {
     #[allow(clippy::await_holding_lock)]
     async fn execute<W, R>(
         &self,
+        _: &mut crate::codec::Connection<R, W>,
+        db: std::sync::Arc<sharded::Map<BytesMut, Value<'static>>>,
+    ) -> Self::ExecutionResult
+    where
+        R: tokio::io::AsyncRead + Unpin,
+        W: Unpin + tokio::io::AsyncWrite,
+    {
+        let (key, mut shard) = db.write(self.key.clone());
+        let _ = shard.insert(key, self.value.clone());
+        Ok(())
+    }
+
+    fn decode<'c, V>(req: V) -> crate::error::Result<Self>
+    where
+        Self: Sized,
+        V: AsRef<[Value<'c>]>,
+    {
+        match req.as_ref() {
+            [Value::Bytes(key), value] => Ok(Self {
+                key: BytesMut::from(key.as_bytes()),
+                value: value.clone().to_owned(),
+            }),
+            _ => Err(ProtocolError::Command),
+        }
+    }
+
+    fn encode(&self) -> Value<'_> {
+        Value::Array(vec![
+            Value::String(Cow::Borrowed("SET")),
+            Value::Bytes(Cow::from(self.key.clone().as_bytes().to_vec())),
+            self.value.clone().to_owned(),
+        ])
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct GetSet {
+    pub key: BytesMut,
+    pub value: Value<'static>,
+}
+
+impl Command for GetSet {
+    type ExecutionResult = crate::error::Result<()>;
+
+    #[allow(clippy::await_holding_lock)]
+    async fn execute<W, R>(
+        &self,
         connection: &mut crate::codec::Connection<R, W>,
         db: std::sync::Arc<sharded::Map<BytesMut, Value<'static>>>,
     ) -> Self::ExecutionResult
@@ -59,7 +106,7 @@ impl Command for Set {
 
     fn encode(&self) -> Value<'_> {
         Value::Array(vec![
-            Value::String(Cow::Borrowed("SET")),
+            Value::String(Cow::Borrowed("GETSET")),
             Value::Bytes(Cow::from(self.key.clone().as_bytes().to_vec())),
             self.value.clone().to_owned(),
         ])
